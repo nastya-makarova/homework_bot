@@ -104,8 +104,8 @@ def parse_status(homework):
 def main():
     """Основная логика работы бота."""
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
-    #timestamp = 0
+    #timestamp = int(time.time())
+    timestamp = -2000
 
     logging.basicConfig(
         format='%(levelname)s - %(asctime)s - %(message)s',
@@ -118,9 +118,19 @@ def main():
         '%(levelname)s - %(asctime)s - %(message)s'
     )
     stream_handler = logging.StreamHandler()
-    telegtam_handler = TelegramHandler(telegram_token=TELEGRAM_TOKEN, telegram_chat_id=TELEGRAM_CHAT_ID)
+    telegram_handler = TelegramHandler(
+        bot=bot,
+        telegram_chat_id=TELEGRAM_CHAT_ID,
+
+    )
     stream_handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    telegram_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+    logger.addHandler(telegram_handler)
+
+    logger.setLevel(logging.DEBUG)
+
+    statuses = {}
 
     while True:
         try:
@@ -128,7 +138,6 @@ def main():
             if check_response(response):
                 homework = response.get('homeworks')[0]
                 homework_id = homework.get('id')
-                statuses = {}
                 if homework_id not in statuses:
                     statuses[homework_id] = homework.get('status')
                 old_status = statuses.get(homework_id)
@@ -140,7 +149,7 @@ def main():
                     logging.debug('Статус работы не изменился.')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            logging.error(error, message)
+            logging.error(message)
 
         time.sleep(RETRY_PERIOD)
 
