@@ -136,8 +136,7 @@ def parse_status(homework):
 def main():
     """Основная логика работы бота."""
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    #timestamp = int(time.time())
-    timestamp = -2000
+    timestamp = int(time.time())
 
     logging.basicConfig(
         format='%(levelname)s - %(asctime)s - %(message)s',
