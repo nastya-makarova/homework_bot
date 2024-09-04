@@ -13,10 +13,10 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 class TelegramHandler(logging.Handler):
     """Отправляет сообщения в телеграм, когда происходит ошибка."""
 
-    def __init__(self, bot, telegram_chat_id, last_log_message=None):
+    def __init__(self, telegram_token, telegram_chat_id, last_log_message=None):
         """Инициализирует обработчик для отправки сообщений в Telegram."""
         super().__init__()
-        self.bot = bot
+        self.telegram_token = telegram_token
         self.telegram_chat_id = telegram_chat_id
         self.last_log_message = last_log_message
 
@@ -26,14 +26,14 @@ class TelegramHandler(logging.Handler):
         Сообщение будет отправлено, если уровень логирования является ERROR
         и сообщение не совпадает с последним отправленным.
         """
+        logging.debug('Проверка сообщения')
         if record.levelname in ('ERROR', 'CRITICAL'):
             log_message = self.format(record)
             if log_message != self.last_log_message:
-                logging.debug('Запуск отправки сообщения в Telegram')
-                self.send_message(bot, log_message)
+                self.send_message(log_message)
                 self.last_log_message = log_message
 
-    def send_message(self, bot, message):
+    def send_message(self, message):
         """Метод отправляет сообщение в Telegram с помощью указанного бота."""
         if not self.telegram_chat_id:
             logging.error(
@@ -42,8 +42,7 @@ class TelegramHandler(logging.Handler):
             )
             return
         try:
-            logging.info('Попытка отправить сообщение в Telegram')
-            response = bot.send_message(chat_id=self.telegram_chat_id, text=message)
-            logging.info(f'Сообщение отправлено в Telegram, статус: {response.status_code}')
+            bot = TeleBot(token=self.telegram_token)
+            bot.send_message(chat_id=self.telegram_chat_id, text=message)
         except Exception as error:
             logging.error(error, 'Невозможно отправить сообщение об ошибке.')

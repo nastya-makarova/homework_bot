@@ -15,6 +15,7 @@ from exceptions import (
 )
 from handlers import TelegramHandler
 
+
 load_dotenv()
 
 
@@ -34,13 +35,32 @@ HOMEWORK_VERDICTS = {
 }
 
 
+logger = logging.getLogger('__name__')
+logger.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter(
+    '%(levelname)s - %(asctime)s - %(message)s'
+)
+
+stream_handler = logging.StreamHandler()
+telegram_handler = TelegramHandler(
+    telegram_token=TELEGRAM_TOKEN,
+    telegram_chat_id=TELEGRAM_CHAT_ID
+)
+stream_handler.setFormatter(formatter)
+telegram_handler.setFormatter(formatter)
+
+logger.addHandler(telegram_handler)
+logger.addHandler(stream_handler)
+
+
 def check_tokens():
     """Функция проверяет доступность переменных окружения."""
     tokens = {'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
               'TELEGRAM_TOKEN': TELEGRAM_TOKEN}
     for name, value in tokens.items():
         if value is None or value == '':
-            logging.critical(
+            logger.critical(
                 'Отсутствует обязательная переменная окружения: %s', name
             )
             raise TokenNotFoundError
@@ -52,15 +72,15 @@ def send_message(bot, message):
     """Функция отправляет сообщение в чат, определяемый TELEGRAM_CHAT_ID."""
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
-        logging.debug('Сообщение успешно отправлено')
+        logger.debug('Сообщение успешно отправлено')
     except Exception as error:
-        logging.error(error, 'Сообщение отправить не удалось.')
+        logger.error(error, 'Сообщение отправить не удалось.')
 
 
 def get_api_answer(timestamp):
     """Функция делает запрос к единственному эндпоинту API-сервиса."""
     if not isinstance(timestamp, int) or timestamp < 0:
-        logging.error('Введено некорректное значение метки времени.')
+        logger.error('Введено некорректное значение метки времени.')
         raise TimestampError
 
     if check_tokens():
@@ -72,7 +92,7 @@ def get_api_answer(timestamp):
                 params=payload
             )
         except Exception as error:
-            logging.error(error, 'Ошибка при запросе к основному API.')
+            logger.error(error, 'Ошибка при запросе к основному API.')
             print(f'Ошибка при запросе к основному API: {error}')
         else:
             return homework_statuses.json()
@@ -81,10 +101,10 @@ def get_api_answer(timestamp):
 def check_response(response):
     """Функция проверяет ответ API на соответствие документации."""
     if 'homeworks' not in response and 'current_date' not in response:
-        logging.error('Ответ API не соответвует документации.')
+        logger.error('Ответ API не соответвует документации.')
         raise APIResponseError
     elif response.get('homeworks') == []:
-        logging.debug('Домашние работы не найдены.')
+        logger.debug('Домашние работы не найдены.')
         return False
     else:
         return True
@@ -95,7 +115,7 @@ def parse_status(homework):
     homework_name = homework.get('homework_name')
     status = homework.get('status')
     if status not in HOMEWORK_VERDICTS:
-        logging.error('Неожиданный статус домашней работы.')
+        logger.error('Неожиданный статус домашней работы.')
         raise StatusError
     verdict = HOMEWORK_VERDICTS.get(status)
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
@@ -111,24 +131,6 @@ def main():
         format='%(levelname)s - %(asctime)s - %(message)s',
         level=logging.DEBUG
     )
-
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(
-        '%(levelname)s - %(asctime)s - %(message)s'
-    )
-    stream_handler = logging.StreamHandler()
-    telegram_handler = TelegramHandler(
-        bot=bot,
-        telegram_chat_id=TELEGRAM_CHAT_ID,
-
-    )
-    stream_handler.setFormatter(formatter)
-    telegram_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-    logger.addHandler(telegram_handler)
-
-    logger.setLevel(logging.DEBUG)
 
     statuses = {}
 
