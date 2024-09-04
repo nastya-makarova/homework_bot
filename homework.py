@@ -1,11 +1,19 @@
+import logging
+import logging.handlers
 import os
-import requests
 import time
 
+import requests
 from dotenv import load_dotenv
 from telebot import TeleBot
 
-from exceptions import TokenNotFoundError, TimestampError, HomeworkNotFoundError, APIResponseError
+from exceptions import (
+    APIResponseError,
+    StatusError,
+    TimestampError,
+    TokenNotFoundError,
+)
+from handlers import TelegramHandler
 
 load_dotenv()
 
@@ -28,22 +36,31 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Функция проверяет доступность переменных окружения."""
-    tokens = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
-    if any(token is None for token in tokens):
-        raise TokenNotFoundError
-    else:
-        return True
+    tokens = {'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
+              'TELEGRAM_TOKEN': TELEGRAM_TOKEN}
+    for name, value in tokens.items():
+        if value is None or value == '':
+            logging.critical(
+                'Отсутствует обязательная переменная окружения: %s', name
+            )
+            raise TokenNotFoundError
+        else:
+            return True
 
 
 def send_message(bot, message):
     """Функция отправляет сообщение в чат, определяемый TELEGRAM_CHAT_ID."""
-    # message = parse_status(homework)
-    bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+    try:
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        logging.debug('Сообщение успешно отправлено')
+    except Exception as error:
+        logging.error(error, 'Сообщение отправить не удалось.')
 
 
 def get_api_answer(timestamp):
     """Функция делает запрос к единственному эндпоинту API-сервиса."""
     if not isinstance(timestamp, int) or timestamp < 0:
+        logging.error('Введено некорректное значение метки времени.')
         raise TimestampError
 
     if check_tokens():
@@ -55,6 +72,7 @@ def get_api_answer(timestamp):
                 params=payload
             )
         except Exception as error:
+            logging.error(error, 'Ошибка при запросе к основному API.')
             print(f'Ошибка при запросе к основному API: {error}')
         else:
             return homework_statuses.json()
@@ -62,21 +80,23 @@ def get_api_answer(timestamp):
 
 def check_response(response):
     """Функция проверяет ответ API на соответствие документации."""
-    # response = get_api_answer(timestamp)
     if 'homeworks' not in response and 'current_date' not in response:
+        logging.error('Ответ API не соответвует документации.')
         raise APIResponseError
     elif response.get('homeworks') == []:
-        raise HomeworkNotFoundError
+        logging.debug('Домашние работы не найдены.')
+        return False
     else:
         return True
 
 
 def parse_status(homework):
     """Функция извлекает статус конкретной домашней работы."""
-    # homework = homework_statuses.json().get('homeworks')[0]
-    # homework_statuses.json() = get_api_answer(timestamp)
     homework_name = homework.get('homework_name')
     status = homework.get('status')
+    if status not in HOMEWORK_VERDICTS:
+        logging.error('Неожиданный статус домашней работы.')
+        raise StatusError
     verdict = HOMEWORK_VERDICTS.get(status)
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -84,8 +104,23 @@ def parse_status(homework):
 def main():
     """Основная логика работы бота."""
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    #timestamp = int(time.time())
-    timestamp = 0
+    timestamp = int(time.time())
+    #timestamp = 0
+
+    logging.basicConfig(
+        format='%(levelname)s - %(asctime)s - %(message)s',
+        level=logging.DEBUG
+    )
+
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        '%(levelname)s - %(asctime)s - %(message)s'
+    )
+    stream_handler = logging.StreamHandler()
+    telegtam_handler = TelegramHandler(telegram_token=TELEGRAM_TOKEN, telegram_chat_id=TELEGRAM_CHAT_ID)
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
     while True:
         try:
@@ -101,8 +136,12 @@ def main():
                     statuses[homework_id] = homework.get('status')
                     message = parse_status(homework)
                     send_message(bot, message)
+                else:
+                    logging.debug('Статус работы не изменился.')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
+            logging.error(error, message)
+
         time.sleep(RETRY_PERIOD)
 
 
