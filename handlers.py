@@ -26,9 +26,8 @@ class TelegramHandler(logging.Handler):
         Сообщение будет отправлено, если уровень логирования является ERROR
         и сообщение не совпадает с последним отправленным.
         """
-        logging.debug('Проверка сообщения')
         if record.levelname in ('ERROR', 'CRITICAL'):
-            log_message = self.format(record)
+            log_message = record.getMessage()
             if log_message != self.last_log_message:
                 self.send_message(log_message)
                 self.last_log_message = log_message

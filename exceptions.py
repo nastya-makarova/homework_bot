@@ -26,3 +26,9 @@ class StatusError(Exception):
     """Исключение выбрасывается при неизвестном статусе работы."""
 
     pass
+
+
+class HomeworksTypeError(TypeError):
+    """Исключение выбрасывается, если данные`homeworks` не являются списком."""
+
+    pass

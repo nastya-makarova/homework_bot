@@ -12,6 +12,7 @@ from exceptions import (
     StatusError,
     TimestampError,
     TokenNotFoundError,
+    HomeworksTypeError
 )
 from handlers import TelegramHandler
 
@@ -59,13 +60,11 @@ def check_tokens():
     tokens = {'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
               'TELEGRAM_TOKEN': TELEGRAM_TOKEN}
     for name, value in tokens.items():
-        if value is None or value == '':
+        if value is None:
             logger.critical(
                 'Отсутствует обязательная переменная окружения: %s', name
             )
             raise TokenNotFoundError
-        else:
-            return True
 
 
 def send_message(bot, message):
@@ -83,39 +82,49 @@ def get_api_answer(timestamp):
         logger.error('Введено некорректное значение метки времени.')
         raise TimestampError
 
-    if check_tokens():
-        payload = {'from_date': timestamp}
-        try:
-            homework_statuses = requests.get(
-                ENDPOINT,
-                headers=HEADERS,
-                params=payload
-            )
-            if homework_statuses.status_code != 200:
-                logger.error('API возвращает код, отличный от 200')
+    payload = {'from_date': timestamp}
+    try:
+        homework_statuses = requests.get(
+            ENDPOINT,
+            headers=HEADERS,
+            params=payload
+        )
+        if homework_statuses.status_code != 200:
+            logger.error('API возвращает код, отличный от 200')
 
-        except Exception as error:
-            logger.error(error, 'Ошибка при запросе к основному API.')
-            print(f'Ошибка при запросе к основному API: {error}')
-        else:
-            return homework_statuses.json()
+    except Exception as error:
+        logger.error(error, 'Ошибка при запросе к основному API.')
+        print(f'Ошибка при запросе к основному API: {error}')
+    else:
+        return homework_statuses.json()
 
 
 def check_response(response):
     """Функция проверяет ответ API на соответствие документации."""
-    if 'homeworks' not in response and 'current_date' not in response:
-        logger.error('Ответ API не соответвует документации.')
-        raise APIResponseError
-    elif response.get('homeworks') == []:
+    response_keys = ['homeworks', 'current_date']
+    for key in response_keys:
+        if key not in response:
+            logger.error('Ответ API не содержит %s', key)
+            raise APIResponseError
+
+    if response.get('homeworks') == []:
         logger.debug('Домашние работы не найдены.')
         return False
+    elif type(response.get('homeworks')) is not list:
+        logger.error('В ответе API домашки под ключом `homeworks` данные'
+                     'приходят не в виде списка.')
+        raise HomeworksTypeError
     else:
         return True
 
 
 def parse_status(homework):
     """Функция извлекает статус конкретной домашней работы."""
-    homework_name = homework.get('homework_name')
+    if homework.get('homework_name'):
+        homework_name = homework.get('homework_name')
+    else:
+        logger.error('Ответ API не содержит ключ `homework_name`')
+        raise APIResponseError
     status = homework.get('status')
     if status not in HOMEWORK_VERDICTS:
         logger.error('Неожиданный статус домашней работы.')
@@ -138,6 +147,12 @@ def main():
     statuses = {}
 
     while True:
+        try:
+            check_tokens()
+        except TokenNotFoundError as error:
+            logger.critical(error)
+            break
+
         try:
             response = get_api_answer(timestamp)
             if check_response(response):
