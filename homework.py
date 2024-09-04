@@ -91,6 +91,9 @@ def get_api_answer(timestamp):
                 headers=HEADERS,
                 params=payload
             )
+            if homework_statuses.status_code != 200:
+                logger.error('API возвращает код, отличный от 200')
+
         except Exception as error:
             logger.error(error, 'Ошибка при запросе к основному API.')
             print(f'Ошибка при запросе к основному API: {error}')
