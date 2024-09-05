@@ -9,13 +9,12 @@ from telebot import TeleBot
 
 from exceptions import (
     APIResponseError,
+    HomeworksTypeError,
     StatusError,
     TimestampError,
     TokenNotFoundError,
-    HomeworksTypeError
 )
 from handlers import TelegramHandler
-
 
 load_dotenv()
 
@@ -23,6 +22,7 @@ load_dotenv()
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -136,8 +136,7 @@ def parse_status(homework):
 def main():
     """Основная логика работы бота."""
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    #timestamp = int(time.time())
-    timestamp = 0
+    timestamp = int(time.time())
 
     logging.basicConfig(
         format='%(levelname)s - %(asctime)s - %(message)s',
