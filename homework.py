@@ -136,14 +136,15 @@ def parse_status(homework):
 def main():
     """Основная логика работы бота."""
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
+    #timestamp = int(time.time())
+    timestamp = 0
 
     logging.basicConfig(
         format='%(levelname)s - %(asctime)s - %(message)s',
         level=logging.DEBUG
     )
 
-    statuses = {}
+    previous_status = None
 
     while True:
         try:
@@ -156,14 +157,11 @@ def main():
             response = get_api_answer(timestamp)
             if check_response(response):
                 homework = response.get('homeworks')[0]
-                homework_id = homework.get('id')
-                if homework_id not in statuses:
-                    statuses[homework_id] = homework.get('status')
-                old_status = statuses.get(homework_id)
-                if old_status != homework.get('status'):
-                    statuses[homework_id] = homework.get('status')
+                current_status = homework.get('status')
+                if current_status != previous_status:
                     message = parse_status(homework)
                     send_message(bot, message)
+                    previous_status = current_status
                 else:
                     logging.debug('Статус работы не изменился.')
         except Exception as error:
