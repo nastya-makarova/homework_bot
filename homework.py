@@ -9,7 +9,9 @@ from dotenv import load_dotenv
 from telebot import TeleBot
 
 from exceptions import (
+    APIHomeworkError,
     APIResponseError,
+    APIStatusError,
     HomeworkNotFoundError,
     HomeworksTypeError,
     ResponseStatusError,
@@ -38,24 +40,19 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.',
 }
 
-logging.basicConfig(
-    format='%(levelname)s - %(asctime)s - %(message)s',
-    level=logging.DEBUG,
-    stream=sys.stdout
-)
-
 
 def check_tokens():
     """Функция проверяет доступность переменных окружения."""
     tokens = (
-        ('PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID'),
-        (PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID),
+        ('PRACTICUM_TOKEN', PRACTICUM_TOKEN),
+        ('TELEGRAM_TOKEN', TELEGRAM_TOKEN),
+        ('TELEGRAM_CHAT_ID', TELEGRAM_CHAT_ID)
     )
-    for i in range(len(tokens[0])):
-        if tokens[1][i] is None:
+    for name, value in tokens:
+        if value is None:
             raise TokenNotFoundError(
                 f'Отсутствует обязательная переменная окружения: '
-                f'{tokens[0][i]}'
+                f'{name}'
             )
 
 
@@ -66,7 +63,7 @@ def send_message(bot, message):
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
         logging.debug('Сообщение в Telegram успешно отправлено.')
     except Exception as error:
-        raise Exception(f'Сообщение отправить не удалось. {error}')
+        logging.error('Сообщение отправить не удалось.', error)
 
 
 def get_api_answer(timestamp):
@@ -85,9 +82,9 @@ def get_api_answer(timestamp):
             raise ResponseStatusError('API возвращает код, отличный от 200.')
 
     except Exception as error:
-        raise Exception(f'Ошибка при запросе к основному API: {error}')
-    else:
-        return homework_statuses.json()
+        logging.error('Ошибка при запросе к основному API:', error)
+
+    return homework_statuses.json()
 
 
 def check_response(response):
@@ -97,9 +94,8 @@ def check_response(response):
         if key not in response:
             raise APIResponseError(f'Ответ API не содержит %s, {key}')
 
-    homeworks = response.get('homeworks')
+    homeworks = response['homeworks']
     if not homeworks:
-        logging.debug('Домашние работы не найдены.')
         raise HomeworkNotFoundError('Домашние работы не найдены.')
     elif not isinstance(homeworks, list):
         raise HomeworksTypeError(
@@ -115,10 +111,12 @@ def check_response(response):
 def parse_status(homework):
     """Функция извлекает статус конкретной домашней работы."""
     if 'homework_name' not in homework:
-        raise APIResponseError('Ответ API не содержит ключ `homework_name`')
+        raise APIHomeworkError('Ответ API не содержит ключ `homework_name`')
+    homework_name = homework['homework_name']
 
-    homework_name = homework.get('homework_name')
-    status = homework.get('status')
+    if 'status' not in homework:
+        raise APIStatusError('Ответ API не содержит ключ `status`')
+    status = homework['status']
 
     if status not in HOMEWORK_VERDICTS:
         raise StatusError('Неожиданный статус домашней работы.')
@@ -129,6 +127,12 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
+    logging.basicConfig(
+        format='%(levelname)s - %(asctime)s - %(message)s',
+        level=logging.DEBUG,
+        stream=sys.stdout
+    )
+
     bot = TeleBot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
 
@@ -146,8 +150,8 @@ def main():
         try:
             response = get_api_answer(timestamp)
             check_response(response)
-            homework = response.get('homeworks')[0]
-            current_status = homework.get('status')
+            homework = response['homeworks'][0]
+            current_status = homework['status']
             if current_status != previous_status:
                 message = parse_status(homework)
                 send_message(bot, message)

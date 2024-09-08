@@ -28,3 +28,11 @@ class ResponseTypeError(TypeError):
 
 class ResponseStatusError(Exception):
     """Исключение выбрасывается, если API возвращает код, отличный от 200."""
+
+
+class APIStatusError(TypeError):
+    """Исключение выбрасывается, ответ API не содержит ключ status."""
+
+
+class APIHomeworkError(TypeError):
+    """Исключение выбрасывается, ответ API не содержит ключ homework_name."""
