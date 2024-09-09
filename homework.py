@@ -78,11 +78,11 @@ def get_api_answer(timestamp):
             headers=HEADERS,
             params=payload
         )
-        if homework_statuses.status_code != 200:
-            raise ResponseStatusError('API возвращает код, отличный от 200.')
-
-    except Exception as error:
+    except requests.RequestException as error:
         logging.error('Ошибка при запросе к основному API:', error)
+
+    if homework_statuses.status_code != 200:
+        raise ResponseStatusError('API возвращает код, отличный от 200.')
 
     return homework_statuses.json()
 
@@ -127,12 +127,6 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    logging.basicConfig(
-        format='%(levelname)s - %(asctime)s - %(message)s',
-        level=logging.DEBUG,
-        stream=sys.stdout
-    )
-
     bot = TeleBot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
 
@@ -175,4 +169,9 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        format='%(levelname)s - %(asctime)s - %(message)s',
+        level=logging.DEBUG,
+        stream=sys.stdout
+    )
     main()
