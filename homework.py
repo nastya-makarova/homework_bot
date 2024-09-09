@@ -63,7 +63,7 @@ def send_message(bot, message):
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
         logging.debug('Сообщение в Telegram успешно отправлено.')
     except Exception as error:
-        logging.error('Сообщение отправить не удалось.', error)
+        logging.error(f'Сообщение отправить не удалось. {error}')
 
 
 def get_api_answer(timestamp):
@@ -79,7 +79,7 @@ def get_api_answer(timestamp):
             params=payload
         )
     except requests.RequestException as error:
-        logging.error('Ошибка при запросе к основному API:', error)
+        logging.error(f'Ошибка при запросе к основному API: {error}')
 
     if homework_statuses.status_code != 200:
         raise ResponseStatusError('API возвращает код, отличный от 200.')
