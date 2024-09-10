@@ -1,3 +1,4 @@
+import json
 import logging
 import logging.handlers
 import os
@@ -9,14 +10,13 @@ from dotenv import load_dotenv
 from telebot import TeleBot
 
 from exceptions import (
-    APIHomeworkError,
-    APIResponseError,
-    APIStatusError,
+    APIResponseKeyError,
     HomeworkNotFoundError,
-    HomeworksTypeError,
+    HomeworkResponseError,
+    HomeworkStatusError,
+    RequestExceptionError,
+    ResponseFormatError,
     ResponseStatusError,
-    ResponseTypeError,
-    StatusError,
     TimestampError,
     TokenNotFoundError,
 )
@@ -72,6 +72,7 @@ def get_api_answer(timestamp):
         raise TimestampError('Введено некорректное значение метки времени.')
 
     payload = {'from_date': timestamp}
+
     try:
         homework_statuses = requests.get(
             ENDPOINT,
@@ -79,12 +80,22 @@ def get_api_answer(timestamp):
             params=payload
         )
     except requests.RequestException as error:
-        logging.error(f'Ошибка при запросе к основному API: {error}')
+        raise RequestExceptionError(
+            f'Ошибка при запросе к основному API: {error}'
+        ) from error
 
     if homework_statuses.status_code != 200:
-        raise ResponseStatusError('API возвращает код, отличный от 200.')
+        raise ResponseStatusError(
+            f'API возвращает код, отличный от 200.'
+            f'Код ответа API: {homework_statuses.status_code}'
+        )
 
-    return homework_statuses.json()
+    try:
+        return homework_statuses.json()
+    except json.JSONDecodeError as error:
+        raise ResponseFormatError(
+            f'Не удалось обработать ответ от сервера.{error}'
+        ) from error
 
 
 def check_response(response):
@@ -92,34 +103,34 @@ def check_response(response):
     response_keys = ['homeworks', 'current_date']
     for key in response_keys:
         if key not in response:
-            raise APIResponseError(f'Ответ API не содержит %s, {key}')
+            raise APIResponseKeyError(f'Ответ API не содержит %s, {key}')
 
     homeworks = response['homeworks']
     if not homeworks:
         raise HomeworkNotFoundError('Домашние работы не найдены.')
     elif not isinstance(homeworks, list):
-        raise HomeworksTypeError(
+        raise HomeworkResponseError(
             'В ответе API домашки под ключом `homeworks`'
             'данные приходят не в виде списка.'
         )
     elif not isinstance(response, dict):
-        raise ResponseTypeError(
-            'В ответе API домашки данные' 'приходит не в виде словаря.'
+        raise HomeworkResponseError(
+            'В ответе API домашки данные приходят не в виде словаря.'
         )
 
 
 def parse_status(homework):
     """Функция извлекает статус конкретной домашней работы."""
     if 'homework_name' not in homework:
-        raise APIHomeworkError('Ответ API не содержит ключ `homework_name`')
+        raise APIResponseKeyError('Ответ API не содержит ключ `homework_name`')
     homework_name = homework['homework_name']
 
     if 'status' not in homework:
-        raise APIStatusError('Ответ API не содержит ключ `status`')
+        raise APIResponseKeyError('Ответ API не содержит ключ `status`')
     status = homework['status']
 
     if status not in HOMEWORK_VERDICTS:
-        raise StatusError('Неожиданный статус домашней работы.')
+        raise HomeworkStatusError('Неожиданный статус домашней работы.')
 
     verdict = HOMEWORK_VERDICTS.get(status)
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
